@@ -9,8 +9,13 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.documentfile.provider.DocumentFile
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.NetworkInterface
 
 class MainActivity : Activity() {
@@ -20,15 +25,26 @@ class MainActivity : Activity() {
 
     inner class TvBridge {
         @JavascriptInterface fun remoteAddress(): String = "http://" + localIp() + ":8765"
-        @JavascriptInterface fun chooseUsb() { runOnUiThread { val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); startActivityForResult(i, usbRequest) } }
+        @JavascriptInterface fun chooseUsb() { runOnUiThread { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), usbRequest) } }
+        @JavascriptInterface fun mediaList(): String {
+            val uri = getSharedPreferences("screenos", MODE_PRIVATE).getString("usb_tree", null) ?: return "[]"
+            return try {
+                val root = DocumentFile.fromTreeUri(this@MainActivity, Uri.parse(uri)) ?: return "[]"
+                val items = JSONArray()
+                root.listFiles().filter { it.isFile && (it.type?.startsWith("image/") == true || it.type?.startsWith("video/") == true) }
+                    .take(300).forEach { file ->
+                        items.put(JSONObject().put("name", file.name ?: "Medium").put("uri", file.uri.toString())
+                            .put("type", if (file.type?.startsWith("video/") == true) "video" else "image"))
+                    }
+                items.toString()
+            } catch (_: Exception) { "[]" }
+        }
     }
 
-    private fun localIp(): String {
-        return try {
-            NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }
-                .firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }?.hostAddress ?: "TV-IP"
-        } catch (_: Exception) { "TV-IP" }
-    }
+    private fun localIp(): String = try {
+        NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }
+            .firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }?.hostAddress ?: "TV-IP"
+    } catch (_: Exception) { "TV-IP" }
 
     @Suppress("DEPRECATION")
     private fun immersive() {
@@ -45,7 +61,18 @@ class MainActivity : Activity() {
             settings.domStorageEnabled = false
             settings.allowContentAccess = true
             addJavascriptInterface(TvBridge(), "ScreenOS")
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                    val uri = request?.url ?: return null
+                    if (uri.scheme == "content") {
+                        return try {
+                            val stream = contentResolver.openInputStream(Uri.parse(uri.toString()))
+                            WebResourceResponse(contentResolver.getType(uri) ?: "application/octet-stream", null, stream)
+                        } catch (_: Exception) { null }
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+            }
             webChromeClient = WebChromeClient()
             isFocusable = true
             isFocusableInTouchMode = true
@@ -53,15 +80,12 @@ class MainActivity : Activity() {
         }
         setContentView(screen)
         server = ScreenServer(this) { action -> runOnUiThread { handleAction(action) } }
-        try { server?.start(NanoHttpdTimeout.SOCKET_READ, false) } catch (_: Exception) { }
+        try { server?.start(5000, false) } catch (_: Exception) { }
     }
 
     private fun handleAction(action: String) {
         when (action) {
-            "open_photos" -> {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                startActivityForResult(intent, usbRequest)
-            }
+            "open_photos" -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), usbRequest)
             else -> {
                 val key = when (action) {
                     "next" -> KeyEvent.KEYCODE_MEDIA_NEXT
@@ -81,10 +105,10 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == usbRequest && resultCode == RESULT_OK) {
-            data?.data?.let { uri: Uri ->
+            data?.data?.let { uri ->
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 getSharedPreferences("screenos", MODE_PRIVATE).edit().putString("usb_tree", uri.toString()).apply()
-                screen.evaluateJavascript("document.getElementById('usbStatus').textContent='USB-Ordner ausgewählt.';", null)
+                screen.evaluateJavascript("document.getElementById('usbStatus').textContent='USB-Ordner ausgewählt.';renderMedia();", null)
             }
         }
     }
@@ -93,6 +117,4 @@ class MainActivity : Activity() {
     override fun onDestroy() { server?.stop(); server = null; super.onDestroy() }
     @Deprecated("Deprecated by Android")
     override fun onBackPressed() { if (::screen.isInitialized && screen.canGoBack()) screen.goBack() else super.onBackPressed() }
-
-    private object NanoHttpdTimeout { const val SOCKET_READ = 5000 }
 }
