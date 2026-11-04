@@ -1,23 +1,30 @@
 # ScreenOS
 
-ScreenOS is an Android TV dashboard for photos, videos, music information and phone-based control.
+Android-TV-Dashboard mit lokaler Handy-Fernbedienung.
 
-## Current foundation (0.1)
-- Native Android TV app entry point (Leanback + normal launcher).
-- Fullscreen dashboard packaged inside the APK.
-- Basic TV remote navigation through Android WebView.
-- GitHub Actions workflow builds a debug APK artifact.
+## Funktionen der aktuellen Entwicklungsfassung
+- Vollbild-Dashboard für Android TV.
+- Lokale Handy-Fernbedienung im WLAN auf Port 8765.
+- TV-Befehle für Zurück, Home und Mediensteuerung.
+- USB-Ordnerauswahl über Androids System-Dateiauswahl.
+- Anzeige von Fotos und Videos aus dem ausgewählten USB-Hauptordner.
+- Spotify-Client-ID-Eingabe auf der Handyseite und OAuth 2.0 Authorization Code mit PKCE.
+- Verschlüsselte Speicherung der Spotify-Tokens über Android Keystore.
+- Anzeige des aktuell laufenden Titels und automatische Token-Erneuerung.
+- GitHub Actions APK-Build.
 
-## Planned next
-1. Phone remote served by the TV app on the same Wi-Fi network.
-2. USB media selection using Android's Storage Access Framework.
-3. Spotify connection settings on the phone remote.
-4. Photo slideshow, video playback, clock/weather and dashboard customization.
+## Spotify einmalig einrichten
+1. Erstelle eine Spotify-App mit Web API.
+2. Hinterlege als Redirect URI exakt: https://lucaszatkowski3-eng.github.io/Tv/spotify-callback.html
+3. Öffne in den Repository-Einstellungen Settings > Pages und wähle als Build and deployment source „GitHub Actions“.
+4. Nach dem Pages-Workflow ist die Callback-Seite erreichbar.
+5. Starte ScreenOS am TV, öffne die dort angezeigte Handy-Adresse im selben WLAN und trage die Spotify Client-ID ein.
+6. Autorisiere Spotify. Kopiere danach Code und State von der Callback-Seite zurück in die Fernbedienung.
 
-## Spotify setup design
-Spotify will be optional. The phone remote will contain a Spotify verbinden page where the owner can enter their Spotify Client ID and start the authorization flow. The implementation should use Spotify Authorization Code with PKCE for a public client; a client secret must never be requested or stored in the phone browser or APK. After authorization, the TV dashboard can show currently playing metadata and album artwork subject to Spotify API permissions and account/API availability.
+ScreenOS fragt kein Client Secret ab. Die Spotify-Verbindung verwendet PKCE. Welche Daten Spotify bereitstellt und ob die API für das Konto verfügbar ist, richtet sich nach den jeweils geltenden Spotify-Entwicklerregeln und Kontovoraussetzungen.
 
-No Spotify credentials are included in this repository. The dashboard currently displays a not-connected placeholder.
+## Handy-Fernbedienung
+TV und Handy müssen im selben WLAN sein. Die App zeigt auf dem TV die Adresse im Format http://TV-IP:8765 an. Diese Adresse im Browser des Handys öffnen.
 
-## Build
-GitHub Actions builds app-debug.apk on pushes to main or when manually started from the Actions tab. This first build is a debug APK for testing, not a Play Store release.
+## APK
+Der Workflow „Build ScreenOS APK“ baut app-debug.apk als Testversion. Vor einer Veröffentlichung sind ein Release-Schlüssel, Tests am konkreten Fernseher und eine Datenschutzprüfung erforderlich.
