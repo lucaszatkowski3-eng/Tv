@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScreenOS</title>
+<style>
+:root{color-scheme:dark;font-family:Arial,sans-serif;background:#090d17;color:#f4f6ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 75% 10%,#24345a 0,transparent 42%),#090d17}
+main{padding:5vh 6vw}.top{display:flex;justify-content:space-between;align-items:center;color:#aeb9d5;font-size:1.2rem}
+h1{font-size:clamp(3rem,6vw,6rem);margin:.5rem 0;font-weight:600;letter-spacing:-.06em}
+.sub{color:#aeb9d5;font-size:1.4rem}.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:1.5rem;margin-top:4vh}
+.card{background:#151e30dd;border:1px solid #34415b;border-radius:24px;padding:2rem;min-height:230px}
+.card h2{margin:0 0 1rem;font-size:1.5rem}.muted{color:#aeb9d5}.large{font-size:2rem}
+button{background:#dce6ff;color:#10182a;border:0;border-radius:14px;padding:14px 20px;font-size:1rem;font-weight:bold;margin:8px 8px 0 0}
+button:focus{outline:4px solid #85aaff;outline-offset:4px}.status{color:#9db5ff}
+</style></head>
+<body><main>
+<div class="top"><span>SCREENOS · TV DASHBOARD</span><span id="date">--</span></div>
+<h1>Dein Bildschirm.</h1><div class="sub">Ein Ort für Fotos, Musik und deine Lieblingsinhalte.</div>
+<section class="grid">
+<article class="card"><h2>Jetzt läuft</h2><div class="large">Noch keine Musik verbunden</div><p class="muted">Spotify lässt sich später über die Handy-Fernbedienung freischalten.</p><span class="status">Spotify · Nicht verbunden</span></article>
+<article class="card"><h2>Deine Medien</h2><p class="muted">USB-Fotos und Videos werden in einem nächsten Schritt eingebunden.</p><button onclick="document.getElementById('info').textContent='USB-Medien: Einrichtung folgt im nächsten Ausbau.'">Medien öffnen</button><p id="info" class="muted"></p></article>
+</section>
+<p class="muted" style="margin-top:3rem">ScreenOS 0.1 · Mit der TV-Fernbedienung bedienbar</p>
+</main><script>
+function tick(){const d=new Date();document.getElementById('date').textContent=d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'})+' · '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});}
+tick();setInterval(tick,30000);
+</script></body></html>
