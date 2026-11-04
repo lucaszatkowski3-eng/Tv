@@ -32,18 +32,18 @@ private object TokenVault {
     fun seal(value: String): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
-        val data = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-        return Base64.encodeToString(data, Base64.NO_WRAP)
+        return Base64.encodeToString(cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
     }
-    fun open(value: String?): String? = try {
-        if (value == null) return null
-        val data = Base64.decode(value, Base64.NO_WRAP)
-        val iv = data.copyOfRange(0, 12)
-        val encrypted = data.copyOfRange(12, data.size)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-        String(cipher.doFinal(encrypted), Charsets.UTF_8)
-    } catch (_: Exception) { null }
+    fun open(value: String?): String? {
+        return try {
+            if (value == null) null else {
+                val data = Base64.decode(value, Base64.NO_WRAP)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, data.copyOfRange(0, 12)))
+                String(cipher.doFinal(data.copyOfRange(12, data.size)), Charsets.UTF_8)
+            }
+        } catch (_: Exception) { null }
+    }
 }
 
 class ScreenServer(private val context: Context, private val onAction: (String) -> Unit) : NanoHTTPD(8765) {
@@ -52,28 +52,31 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
     private var expectedState: String? = null
     private var clientId: String? = null
 
-    override fun serve(session: IHTTPSession): Response = try {
-        if (session.method == Method.OPTIONS) return newFixedLengthResponse(Response.Status.OK, "text/plain", "").withCors()
-        when (session.uri) {
-            "/", "/remote" -> asset("remote.html")
-            "/spotify-callback" -> asset("spotify-callback.html")
-            "/api/status" -> json(JSONObject().put("ok", true).put("spotifyConnected", prefs.contains("spotify_access")))
-            "/api/action" -> {
-                val action = body(session).optString("action")
-                if (action in listOf("next", "previous", "playpause", "back", "home", "open_photos")) onAction(action)
-                json(JSONObject().put("ok", true))
+    override fun serve(session: IHTTPSession): Response {
+        return try {
+            if (session.method == Method.OPTIONS) {
+                newFixedLengthResponse(Response.Status.OK, "text/plain", "").withCors()
+            } else when (session.uri) {
+                "/", "/remote" -> asset("remote.html")
+                "/spotify-callback" -> asset("spotify-callback.html")
+                "/api/status" -> json(JSONObject().put("ok", true).put("spotifyConnected", prefs.contains("spotify_access")))
+                "/api/action" -> {
+                    val action = body(session).optString("action")
+                    if (action in listOf("next", "previous", "playpause", "back", "home", "open_photos")) onAction(action)
+                    json(JSONObject().put("ok", true))
+                }
+                "/api/spotify/start" -> startSpotify(body(session).optString("clientId"))
+                "/api/spotify/finish" -> finishSpotify(body(session))
+                "/api/spotify/now" -> nowPlaying()
+                "/api/spotify/disconnect" -> {
+                    prefs.edit().remove("spotify_access").remove("spotify_refresh").remove("spotify_expiry").remove("spotify_client_id").apply()
+                    json(JSONObject().put("ok", true))
+                }
+                else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found").withCors()
             }
-            "/api/spotify/start" -> startSpotify(body(session).optString("clientId"))
-            "/api/spotify/finish" -> finishSpotify(body(session))
-            "/api/spotify/now" -> nowPlaying()
-            "/api/spotify/disconnect" -> {
-                prefs.edit().remove("spotify_access").remove("spotify_refresh").remove("spotify_expiry").apply()
-                json(JSONObject().put("ok", true))
-            }
-            else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found").withCors()
+        } catch (e: Exception) {
+            json(JSONObject().put("ok", false).put("error", e.message ?: "Unbekannter Fehler"), Response.Status.INTERNAL_ERROR)
         }
-    } catch (e: Exception) {
-        json(JSONObject().put("ok", false).put("error", e.message ?: "Unbekannter Fehler"), Response.Status.INTERNAL_ERROR)
     }
 
     private fun Response.withCors(): Response {
@@ -96,11 +99,12 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
     private fun startSpotify(id: String): Response {
         require(id.matches(Regex("[A-Za-z0-9]{20,40}"))) { "Bitte eine gültige Spotify Client-ID eingeben." }
         clientId = id
+        prefs.edit().putString("spotify_client_id", id).apply()
         val bytes = ByteArray(64).also { SecureRandom().nextBytes(it) }
-        verifier = android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+        verifier = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
         expectedState = UUID.randomUUID().toString()
-        val challenge = android.util.Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier!!.toByteArray(Charsets.US_ASCII)),
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+        val challenge = Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier!!.toByteArray(Charsets.US_ASCII)),
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
         val redirect = "https://lucaszatkowski3-eng.github.io/Tv/spotify-callback.html"
         val params = listOf("client_id" to id, "response_type" to "code", "redirect_uri" to redirect,
             "code_challenge_method" to "S256", "code_challenge" to challenge, "state" to expectedState!!,
@@ -112,11 +116,13 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
     private fun finishSpotify(data: JSONObject): Response {
         val code = data.optString("code")
         require(code.isNotBlank() && data.optString("state") == expectedState) { "Code oder Sicherheitsprüfung ungültig. Bitte erneut anmelden." }
-        val form = listOf("client_id" to (clientId ?: error("Client-ID fehlt.")), "grant_type" to "authorization_code",
-            "code" to code, "redirect_uri" to "https://lucaszatkowski3-eng.github.io/Tv/spotify-callback.html",
+        val id = clientId ?: error("Client-ID fehlt. Bitte erneut starten.")
+        val form = listOf("client_id" to id, "grant_type" to "authorization_code", "code" to code,
+            "redirect_uri" to "https://lucaszatkowski3-eng.github.io/Tv/spotify-callback.html",
             "code_verifier" to (verifier ?: error("Anmeldung abgelaufen.")))
             .joinToString("&") { enc(it.first) + "=" + enc(it.second) }
         val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
+        conn.connectTimeout = 12000; conn.readTimeout = 12000
         conn.requestMethod = "POST"; conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         conn.outputStream.use { it.write(form.toByteArray()) }
@@ -135,17 +141,18 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
         val current = TokenVault.open(prefs.getString("spotify_access", null))
         if (current != null && System.currentTimeMillis() < expiry - 60000) return current
         val refresh = TokenVault.open(prefs.getString("spotify_refresh", null)) ?: return current
-        val id = clientId ?: prefs.getString("spotify_client_id", null) ?: return current
+        val id = prefs.getString("spotify_client_id", null) ?: return current
         val form = listOf("client_id" to id, "grant_type" to "refresh_token", "refresh_token" to refresh)
             .joinToString("&") { enc(it.first) + "=" + enc(it.second) }
         val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
+        conn.connectTimeout = 12000; conn.readTimeout = 12000
         conn.requestMethod = "POST"; conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         conn.outputStream.use { it.write(form.toByteArray()) }
         if (conn.responseCode !in 200..299) return null
         val token = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
         val newAccess = token.optString("access_token")
-        val newRefresh = token.optString("refresh_token", refresh).ifBlank { refresh }
+        val newRefresh = token.optString("refresh_token").ifBlank { refresh }
         prefs.edit().putString("spotify_access", TokenVault.seal(newAccess))
             .putString("spotify_refresh", TokenVault.seal(newRefresh))
             .putLong("spotify_expiry", System.currentTimeMillis() + token.optLong("expires_in") * 1000L).apply()
@@ -155,6 +162,7 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
     private fun nowPlaying(): Response {
         val token = accessToken() ?: return json(JSONObject().put("ok", false).put("connected", false).put("message", "Bitte Spotify erneut verbinden."))
         val conn = URL("https://api.spotify.com/v1/me/player/currently-playing").openConnection() as HttpURLConnection
+        conn.connectTimeout = 10000; conn.readTimeout = 10000
         conn.setRequestProperty("Authorization", "Bearer $token")
         if (conn.responseCode == 204) return json(JSONObject().put("ok", true).put("connected", true).put("playing", false))
         val raw = (if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
