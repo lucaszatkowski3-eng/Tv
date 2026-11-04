@@ -9,10 +9,11 @@ android {
         applicationId = "de.screenos.tv"
         minSdk = 23
         targetSdk = 28
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 }
 dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 }
