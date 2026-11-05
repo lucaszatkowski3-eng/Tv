@@ -82,7 +82,8 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
                     val action = body(session).optString("action")
                     val allowed = listOf("next", "previous", "playpause", "back", "home", "open_photos",
                         "up", "down", "left", "right", "ok", "volume_up", "volume_down", "mute",
-                        "channel_up", "channel_down", "settings", "source", "rewind", "stop", "guide", "info") +
+                        "channel_up", "channel_down", "settings", "source", "rewind", "stop", "guide", "info",
+                        "dashboard", "menu", "open_usb", "slideshow_toggle", "slideshow_stop", "slideshow_prev", "slideshow_next") +
                         (0..9).map { "digit_$it" }
                     if (action in allowed) onAction(action)
                     json(JSONObject().put("ok", true))
