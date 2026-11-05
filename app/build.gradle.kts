@@ -9,8 +9,8 @@ android {
         applicationId = "de.screenos.tv"
         minSdk = 23
         targetSdk = 28
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
