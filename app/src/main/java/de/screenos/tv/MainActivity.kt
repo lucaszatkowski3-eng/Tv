@@ -84,7 +84,13 @@ class MainActivity : Activity() {
     private fun handleAction(action: String) {
         val audio = getSystemService(AUDIO_SERVICE) as AudioManager
         when (action) {
-            "open_photos" -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), usbRequest)
+            "open_photos", "open_usb" -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), usbRequest)
+            "dashboard" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('dashboard')", null)
+            "menu" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('menu')", null)
+            "slideshow_toggle" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_toggle')", null)
+            "slideshow_stop" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_stop')", null)
+            "slideshow_prev" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_prev')", null)
+            "slideshow_next" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_next')", null)
             "home" -> startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "back" -> onBackPressed()
             "settings" -> startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
