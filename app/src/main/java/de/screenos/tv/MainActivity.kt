@@ -92,7 +92,7 @@ class MainActivity : Activity() {
             "slideshow_prev" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_prev')", null)
             "slideshow_next" -> screen.evaluateJavascript("window.screenOSRemote && window.screenOSRemote('slideshow_next')", null)
             "home" -> startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            "back" -> onBackPressed()
+            "back" -> sendKey(KeyEvent.KEYCODE_ESCAPE)
             "settings" -> startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "volume_up" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
             "volume_down" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
@@ -142,5 +142,5 @@ class MainActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) immersive() }
     override fun onDestroy() { server?.stop(); server = null; super.onDestroy() }
     @Deprecated("Deprecated by Android")
-    override fun onBackPressed() { if (::screen.isInitialized && screen.canGoBack()) screen.goBack() else super.onBackPressed() }
+    override fun onBackPressed() { if (::screen.isInitialized) sendKey(KeyEvent.KEYCODE_ESCAPE) else super.onBackPressed() }
 }
