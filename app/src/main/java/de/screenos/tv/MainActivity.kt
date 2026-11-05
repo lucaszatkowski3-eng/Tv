@@ -75,20 +75,52 @@ class MainActivity : Activity() {
         server = ScreenServer(this) { action -> runOnUiThread { handleAction(action) } }
         try { server?.start(5000, false) } catch (_: Exception) { }
     }
+    private fun sendKey(key: Int) {
+        val now = android.os.SystemClock.uptimeMillis()
+        screen.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, key, 0))
+        screen.dispatchKeyEvent(KeyEvent(android.os.SystemClock.uptimeMillis(), now, KeyEvent.ACTION_UP, key, 0))
+    }
+    @Suppress("DEPRECATION")
     private fun handleAction(action: String) {
+        val audio = getSystemService(AUDIO_SERVICE) as AudioManager
         when (action) {
             "open_photos" -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), usbRequest)
             "home" -> startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "back" -> onBackPressed()
+            "settings" -> startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "volume_up" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+            "volume_down" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+            "mute" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                if (audio.isStreamMute(AudioManager.STREAM_MUSIC)) AudioManager.ADJUST_UNMUTE else AudioManager.ADJUST_MUTE,
+                AudioManager.FLAG_SHOW_UI)
             else -> {
                 val key = when (action) {
                     "next" -> KeyEvent.KEYCODE_MEDIA_NEXT
                     "previous" -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
                     "playpause" -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-                    else -> return
+                    "rewind" -> KeyEvent.KEYCODE_MEDIA_REWIND
+                    "stop" -> KeyEvent.KEYCODE_MEDIA_STOP
+                    "up" -> KeyEvent.KEYCODE_DPAD_UP
+                    "down" -> KeyEvent.KEYCODE_DPAD_DOWN
+                    "left" -> KeyEvent.KEYCODE_DPAD_LEFT
+                    "right" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                    "ok" -> KeyEvent.KEYCODE_DPAD_CENTER
+                    "channel_up" -> KeyEvent.KEYCODE_CHANNEL_UP
+                    "channel_down" -> KeyEvent.KEYCODE_CHANNEL_DOWN
+                    "source" -> KeyEvent.KEYCODE_TV_INPUT
+                    "guide" -> KeyEvent.KEYCODE_GUIDE
+                    "info" -> KeyEvent.KEYCODE_INFO
+                    else -> if (action.startsWith("digit_")) {
+                        val digit = action.removePrefix("digit_").toIntOrNull()
+                        if (digit == null) return else KeyEvent.KEYCODE_0 + digit
+                    } else return
                 }
-                (getSystemService(AUDIO_SERVICE) as AudioManager).dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
-                (getSystemService(AUDIO_SERVICE) as AudioManager).dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+                if (key == KeyEvent.KEYCODE_MEDIA_NEXT || key == KeyEvent.KEYCODE_MEDIA_PREVIOUS ||
+                    key == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || key == KeyEvent.KEYCODE_MEDIA_REWIND ||
+                    key == KeyEvent.KEYCODE_MEDIA_STOP) {
+                    audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+                    audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+                } else sendKey(key)
             }
         }
     }
