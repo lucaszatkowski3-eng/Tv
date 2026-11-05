@@ -60,9 +60,31 @@ class ScreenServer(private val context: Context, private val onAction: (String) 
                 "/", "/remote" -> asset("remote.html")
                 "/spotify-callback" -> asset("spotify-callback.html")
                 "/api/status" -> json(JSONObject().put("ok", true).put("spotifyConnected", prefs.contains("spotify_access")))
+                "/api/config" -> {
+                    if (session.method == Method.POST) {
+                        val data = body(session)
+                        val safe = JSONObject()
+                            .put("name", data.optString("name", "Mein ScreenOS").take(32))
+                            .put("greeting", data.optString("greeting", "Dein persönlicher Bildschirm").take(90))
+                            .put("accent", if (data.optString("accent").matches(Regex("#[0-9A-Fa-f]{6}"))) data.optString("accent") else "#9bb8ff")
+                            .put("background", data.optString("background").takeIf { it in listOf("midnight", "violet", "forest", "sunset", "black") } ?: "midnight")
+                            .put("showMusic", data.optBoolean("showMusic", true))
+                            .put("showUsb", data.optBoolean("showUsb", true))
+                            .put("showRemote", data.optBoolean("showRemote", true))
+                        prefs.edit().putString("dashboard_config", safe.toString()).apply()
+                        json(JSONObject().put("ok", true))
+                    } else {
+                        val saved = prefs.getString("dashboard_config", null)
+                        json(JSONObject().put("ok", true).put("config", if (saved == null) JSONObject() else JSONObject(saved)))
+                    }
+                }
                 "/api/action" -> {
                     val action = body(session).optString("action")
-                    if (action in listOf("next", "previous", "playpause", "back", "home", "open_photos")) onAction(action)
+                    val allowed = listOf("next", "previous", "playpause", "back", "home", "open_photos",
+                        "up", "down", "left", "right", "ok", "volume_up", "volume_down", "mute",
+                        "channel_up", "channel_down", "settings", "source", "rewind", "stop", "guide", "info") +
+                        (0..9).map { "digit_$it" }
+                    if (action in allowed) onAction(action)
                     json(JSONObject().put("ok", true))
                 }
                 "/api/spotify/start" -> startSpotify(body(session).optString("clientId"))
